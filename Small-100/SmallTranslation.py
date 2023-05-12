@@ -14,7 +14,7 @@ books = books["train"].train_test_split(test_size=0.2)
 
 
 model = M2M100ForConditionalGeneration.from_pretrained("alirezamsh/small100")
-tokenizer = SMALL100Tokenizer.from_pretrained("alirezamsh/small100", tgt_lang="fr")
+tokenizer = SMALL100Tokenizer.from_pretrained("alirezamsh/small100", tgt_lang="es")
 
 source_lang = "en"
 target_lang = "es"
