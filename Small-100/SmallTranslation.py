@@ -1,8 +1,12 @@
 from transformers import Seq2SeqTrainingArguments, Seq2SeqTrainer
 from transformers import M2M100ForConditionalGeneration
+from transformers import DataCollatorForSeq2Seq
 from tokenization_small100 import SMALL100Tokenizer
 from torch.utils.checkpoint import checkpoint
+from pynvml import *
 from datasets import load_dataset
+import numpy as np
+import evaluate
 
 books = load_dataset("opus_books", "en-fr")
 
@@ -10,12 +14,10 @@ books = books["train"].train_test_split(test_size=0.2)
 
 
 model = M2M100ForConditionalGeneration.from_pretrained("alirezamsh/small100")
-model.gradient_checkpointing_enable()
-
 tokenizer = SMALL100Tokenizer.from_pretrained("alirezamsh/small100", tgt_lang="fr")
 
 source_lang = "en"
-target_lang = "fr"
+target_lang = "es"
 
 
 def preprocess_function(examples):
@@ -26,16 +28,9 @@ def preprocess_function(examples):
 
 tokenized_books = books.map(preprocess_function, batched=True)
 
-from transformers import DataCollatorForSeq2Seq
-
 data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model)
 
-import evaluate
-
 metric = evaluate.load("sacrebleu")
-
-
-import numpy as np
 
 
 def postprocess_text(preds, labels):
@@ -64,8 +59,6 @@ def compute_metrics(eval_preds):
     result = {k: round(v, 4) for k, v in result.items()}
     return result
 
-from pynvml import *
-
 def print_gpu_utilization():
     nvmlInit()
     handle = nvmlDeviceGetHandleByIndex(0)
@@ -77,24 +70,28 @@ def print_summary(result):
     print(f"Time: {result.metrics['train_runtime']:.2f}")
     print(f"Samples/second: {result.metrics['train_samples_per_second']:.2f}")
     print_gpu_utilization()
+    
+GRADCHECKPOINT = True
+FP16_flag = False
 
-from transformers import AutoModelForSeq2SeqLM, Seq2SeqTrainingArguments, Seq2SeqTrainer
+if GRADCHECKPOINT:
+    model.gradient_checkpointing_enable()
 
 
-output_dir = "Small100_epochs-1-batch-10_ddp-True_fp16-True_grad_acc-True-40"
+output_dir = "Small100_epochs-1-batch-5_ddp-True_fp16-False_grad_acc-True-20-grad_checkpoint-False"
 training_args = Seq2SeqTrainingArguments(
     output_dir=output_dir,
     save_strategy="epoch",
     evaluation_strategy="no",
     learning_rate=2e-5,
-    per_device_train_batch_size=10,
-    per_device_eval_batch_size=10,
+    per_device_train_batch_size=5,
+    per_device_eval_batch_size=5,
     weight_decay=0.01,
     save_total_limit=3,
     num_train_epochs=1,
     predict_with_generate=True,
-    fp16=True,
-    gradient_accumulation_steps=40,
+    fp16=FP16_flag,
+    gradient_accumulation_steps=20,
     #push_to_hub=True,
 )
 
@@ -102,7 +99,7 @@ trainer = Seq2SeqTrainer(
     model=model,
     args=training_args,
     train_dataset=tokenized_books["train"],
-    eval_dataset=tokenized_books["test"],
+    eval_dataset=tokenized_books["test"].train_test_split(test_size=0.05)["test"],#Trainer hangs when trying to evaluate on 25k + sentences
     tokenizer=tokenizer,
     data_collator=data_collator,
     compute_metrics=compute_metrics,
