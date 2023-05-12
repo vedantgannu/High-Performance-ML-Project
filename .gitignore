@@ -1,2 +1,8 @@
 WikiMatrix.*
-MBart/data
+Small-100/data
+Small-100/experiment.*
+Small-100/Small.*
+Small-100/translation_tutorial.ipynb
+Small-100/__py*
+Small-100/Small100_epochs*
+Small-100/experiments.ipynb
