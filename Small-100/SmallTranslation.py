@@ -8,7 +8,7 @@ from datasets import load_dataset
 import numpy as np
 import evaluate
 
-books = load_dataset("opus_books", "en-fr")
+books = load_dataset("opus_books", "en-es")
 
 books = books["train"].train_test_split(test_size=0.2)
 
